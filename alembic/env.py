@@ -19,6 +19,7 @@ from library_catalog.core.database import Base
 # Импортируем модель Book, чтобы Alembic увидел таблицу books
 from library_catalog.data.models import book
 
+
 # Получаем объект конфигурации Alembic
 config = context.config
 
