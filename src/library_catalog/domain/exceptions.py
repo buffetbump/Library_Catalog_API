@@ -67,10 +67,10 @@ class OpenLibraryException(AppException):
 class OpenLibraryTimeoutException(AppException):
     """ Исключение при превышении времени ожидания от Open Library API """
 
-    def __init__(self) -> None:
+    def __init__(self, timeout: float) -> None:
         """ Формирует ошибку таймаута внешнего сервиса со статусом 504 Bad Gateway Timeout """
 
         super().__init__(
-            message="Connection to Open Library API timed out",
+            message=f"Connection to Open Library API timed out after {timeout}s...",
             status_code=504,
         )
