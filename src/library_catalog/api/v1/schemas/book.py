@@ -8,6 +8,31 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
+class ISBNMixin:
+    """ Общий миксин для валидации и стандартизации формата ISBN """
+
+    @field_validator("isbn", mode="before", check_fields=False)
+    @classmethod
+    def validate_isbn_format(cls, v: str | None) -> str | None:
+        """ Очищает ISBN от лишних символов и проверяет корректность длины """
+
+        if v is None:
+            return v
+
+        # Удаляем дефисы и пробелы для стандартизации формата хранения
+        clean = str(v).replace("-", "").replace(" ", "")
+
+        # Символ X валиден только для старого формата ISBN-10
+        if not clean.replace("X", "").isdigit():
+            raise ValueError("ISBN должен содержать только цифры")
+
+        # Проверить длину ISBN
+        if len(clean) not in (10, 13):
+            raise ValueError("ISBN должен состоять из 10 или 13 цифр")
+
+        return clean
+
+
 class BookBase(BaseModel):
     """ Базовая схема книги, содержащая общие поля для всех операций """
 
@@ -18,32 +43,11 @@ class BookBase(BaseModel):
     pages: int = Field(..., gt=0, description="Количество страниц")
 
 
-class BookCreate(BookBase):
+class BookCreate(BookBase, ISBNMixin):
     """ Схема для валидации данных при создании новой книги """
 
     isbn: str | None = Field(None, min_length=10, max_length=20, description="Уникальный номер ISBN")
     description: str | None = Field(None, max_length=5000, description="Описание книги")
-
-    @field_validator("isbn")
-    @classmethod
-    def validate_isbn(cls, v: str | None) -> str | None:
-        """ Очищает ISBN от лишних символов и проверяет корректность длины """
-
-        if v is None:
-            return v
-
-        # Удаляем дефисы и пробелы для стандартизации формата хранения
-        clean = v.replace("-", "").replace(" ", "")
-
-        # Проверить что только цифры (и X для ISBN-10)
-        if not clean.replace("X", "").isdigit():
-            raise ValueError("ISBN должен содержать только цифры")
-
-        # Проверить длину ISBN
-        if len(clean) not in (10, 13):
-            raise ValueError("ISBN должен состоять из 10 или 13 цифр")
-
-        return v
 
     model_config = {
         "json_schema_extra": {
@@ -62,7 +66,7 @@ class BookCreate(BookBase):
     }
 
 
-class BookUpdate(BaseModel):
+class BookUpdate(BaseModel, ISBNMixin):
     """ Схема для валидации данных при частичном обновлении книги """
 
     title: str | None = Field(None, min_length=1, max_length=500)
@@ -71,7 +75,7 @@ class BookUpdate(BaseModel):
     genre: str | None = Field(None, min_length=1, max_length=100)
     pages: int | None = Field(None, gt=0)
     available: bool | None = Field(None)
-    isbn: str | None = Field(None, max_length=20)
+    isbn: str | None = Field(None, min_length=10, max_length=20)
     description: str | None = Field(None)
 
 

@@ -157,4 +157,4 @@ async def delete_book(
         404: Книга не найдена
     """
 
-    return service.delete_book(book_id)
+    await service.delete_book(book_id)

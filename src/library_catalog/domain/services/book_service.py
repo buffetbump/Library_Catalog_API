@@ -3,13 +3,17 @@
 Реализует CRUD операции и валидацию данных перед записью в репозиторий.
 """
 
+import logging
+
 from uuid import UUID
+from datetime import datetime
 
 from library_catalog.api.v1.schemas.book import BookCreate, BookUpdate, ShowBook
 from library_catalog.data.repositories.book_repository import BookRepository
 from library_catalog.external.openlibrary.client import OpenLibraryClient
-from library_catalog.domain.exceptions import *
+from library_catalog.domain.exceptions import BookNotFoundException, BookAlreadyExistsException, InvalidPagesException, InvalidYearException, OpenLibraryException
 from library_catalog.domain.mappers.book_mapper import BookMapper
+from library_catalog.data.models.book import Book
 
 
 class BookService:
@@ -89,15 +93,15 @@ class BookService:
             self,
             book_id: UUID,
             book_data: BookUpdate,
-    ) -> ShowBook:
+    ) -> Book:
         """
-        Обновить книгу.
+        Частично обновить книгу.
         Обновляются только переданные поля.
         """
 
-        # Проверить существование
-        existing = await self.book_repo.get_by_id(book_id)
-        if existing is None:
+        # Проверить существование книги в БД
+        book = await self.book_repo.get_by_id(book_id)
+        if not book:
             raise BookNotFoundException(book_id)
 
         # Валиадция если обновляется год/страницы
@@ -106,17 +110,21 @@ class BookService:
         if book_data.pages is not None:
             self._validate_pages(book_data.pages)
 
-        # Обновить
-        updated = await self.book_repo.update(
-            book_id,
-            **book_data.model_dump(exclude_unset=True)
-        )
+        # Проверка уникальности ISBN с исключением самой книги
+        if book_data.isbn:
+            existing = await self.book_repo.find_by_isbn(book_data.isbn)
+            if existing and existing.book_id != book_id:
+                raise BookAlreadyExistsException(book_data.isbn)
 
-        # Проверка безопасности для линтера  (Type Guard)
+        # Обновление через репозиторий
+        update_dict = book_data.model_dump(exclude_unset=True)
+        updated = await self.book_repo.update(book_id, **update_dict)
+
+        # Проверка безопасности для линтера
         if updated is None:
             raise BookNotFoundException(book_id)
 
-        return BookMapper.to_show_book(updated)
+        return updated
 
     async def delete_book(self, book_id: UUID) -> None:
         """
@@ -180,8 +188,6 @@ class BookService:
     def _validate_year(self, year: int) -> None:
         """ Проверить что год валиден """
 
-        from datetime import datetime
-
         current_year = datetime.now().year
         if year < 1000 or year > current_year:
             raise InvalidYearException(year)
@@ -210,7 +216,6 @@ class BookService:
             return extra if extra else None
         except OpenLibraryException:
             # Логируем но не перерываем создание книги
-            import logging
             logger = logging.getLogger(__name__)
             logger.warning(
                 "Failed to enrich book data from Open Library",
