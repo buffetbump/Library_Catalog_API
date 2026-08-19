@@ -16,6 +16,8 @@ from library_catalog.domain.mappers.book_mapper import BookMapper
 from library_catalog.data.models.book import Book
 
 
+logger = logging.getLogger(__name__)
+
 class BookService:
     """ Сервис для выполнения всей бизнес-логики над книжным каталогом """
 
@@ -216,7 +218,6 @@ class BookService:
             return extra if extra else None
         except OpenLibraryException:
             # Логируем но не перерываем создание книги
-            logger = logging.getLogger(__name__)
             logger.warning(
                 "Failed to enrich book data from Open Library",
                 extra={"title": book_data.title, "author": book_data.author}
